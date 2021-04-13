@@ -1,20 +1,3 @@
-import com.mesut.backporter.Porter;
-
-public class Test {
-    @org.junit.Test
-    public void name() {
-        String src1 = "/media/mesut/SSD-DATA/IdeaProjects/jls/src/main/java";
-        String src = src1;
-        src = "/home/mesut/Desktop/IdeaProjects/backporter/src/test/resources";
-        String dest = "/home/mesut/Desktop/port/src/main/java";
-
-        Porter porter = new Porter(src, dest);
-        porter.addClasspath(src1);
-        porter.port();
-    }
-
-}
-
 class a {
 
     public a(int x) {
@@ -45,12 +28,6 @@ class a {
 
     void cons() {
         i4 o = a::new;
-        /*o = new i4(){
-          a get(int x){
-          return new a(x);
-          }
-        }
-        */
         o.get(5);
     }
 
