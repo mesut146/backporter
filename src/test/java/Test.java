@@ -1,77 +1,60 @@
 import com.mesut.backporter.Porter;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.IntFunction;
+
 public class Test {
+
     @org.junit.Test
-    public void name() {
+    public void port() {
         String src1 = "/media/mesut/SSD-DATA/IdeaProjects/jls/src/main/java";
         String src = src1;
-        src = "/home/mesut/Desktop/IdeaProjects/backporter/src/test/resources";
+        //src = "/home/mesut/Desktop/IdeaProjects/backporter/src/test/resources";
         String dest = "/home/mesut/Desktop/port/src/main/java";
 
         Porter porter = new Porter(src, dest);
         porter.addClasspath(src1);
+        porter.addClasspath("/media/mesut/SSD-DATA/IdeaProjects/jls/dist/classpath/gson-2.8.5.jar");
+        porter.addClasspath("/media/mesut/SSD-DATA/IdeaProjects/jls/dist/classpath/protobuf-java-3.9.1.jar");
         porter.port();
     }
 
-}
+    @org.junit.Test
+    public void consRef() {
+        List<w> l = Arrays.asList(new w(5), new w(8));
+        IntFunction<w[]> f = w[]::new;
+        f = new IntFunction<w[]>() {
+            @Override
+            public w[] apply(int i) {
+                return new w[i];
+            }
+        };
+        w[] arr = l.toArray(f);
 
-class a {
 
-    public a(int x) {
-        System.out.println("cons " + x);
+        System.out.println(Arrays.toString(arr));
     }
 
-    static boolean isEven(int a) {
-        return a % 2 == 0;
+    @org.junit.Test
+    public void stRef() {
+
     }
 
-    public int sum(int a, int b) {
-        return a + b;
-    }
+    static class w {
+        int a;
 
-    public void sum(int a, int b, int c) {
-        System.out.println(a + b + c);
-    }
-
-    public void ins() {
-        i1 ob = this::sum;
-        System.out.println(ob.s(5, 6));
-    }
-
-    public void ins2() {
-        i3 ob = this::sum;
-        ob.a(1, 2, 3);
-    }
-
-    void cons() {
-        i4 o = a::new;
-        /*o = new i4(){
-          a get(int x){
-          return new a(x);
-          }
+        w(int i) {
+            a = i;
+            System.out.println("cons " + i);
         }
-        */
-        o.get(5);
+
+        @Override
+        public String toString() {
+            return "w{" + a + "}";
+        }
+
     }
 
-    void sttc() {
-        i2 o = a::isEven;
-        System.out.println(o.a(5));
-    }
-
-    interface i1 {
-        int s(int a, int b);
-    }
-
-    interface i3 {
-        void a(int a, int b, int c);
-    }
-
-    interface i2 {
-        boolean a(int x);
-    }
-
-    interface i4 {
-        a get(int x);
-    }
 }
+

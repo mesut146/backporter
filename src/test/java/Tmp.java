@@ -1,3 +1,8 @@
+import java.util.function.IntFunction;
+
+public class Tmp {
+}
+
 class a {
 
     public a(int x) {
@@ -28,7 +33,17 @@ class a {
 
     void cons() {
         i4 o = a::new;
+        o = new i4() {
+            public a get(int x) {
+                return new a(x);
+            }
+        };
+
         o.get(5);
+    }
+
+    void consArr() {
+        IntFunction<a[]> arr = a[]::new;
     }
 
     void sttc() {
@@ -50,5 +65,9 @@ class a {
 
     interface i4 {
         a get(int x);
+    }
+
+    interface i5 {
+
     }
 }

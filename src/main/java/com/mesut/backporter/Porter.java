@@ -97,7 +97,9 @@ public class Porter {
     }
 
     private void single(CompilationUnit ast, String path) {
+        System.out.println("porting " + path);
         MyVisitor visitor = new MyVisitor();
+        visitor.unit = ast;
         ast.accept(visitor);
         String relPath = Util.trimPrefix(path, src);
         Path target = Paths.get(dest, relPath);
@@ -111,7 +113,6 @@ public class Porter {
             IDocument doc = new Document(code);
             edit.apply(doc);
             Files.write(target, doc.get().getBytes());
-            System.out.println(path);
         } catch (Exception e) {
             e.printStackTrace();
         }

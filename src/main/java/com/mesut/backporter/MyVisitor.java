@@ -2,85 +2,160 @@ package com.mesut.backporter;
 
 import org.eclipse.jdt.core.dom.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.ListIterator;
 
 public class MyVisitor extends ASTVisitor {
 
+    CompilationUnit unit;
+
+    Type handleVar(Type type) {
+        ITypeBinding binding = type.resolveBinding();
+        if (binding == null) {
+            System.out.println("null var type = " + type.getParent());
+            return (Type) ASTNode.copySubtree(type.getAST(), type);
+        }
+        else {
+            addImport(binding);
+            return makeType(binding, type.getAST(), false);
+        }
+    }
+
+    void addImport(ITypeBinding binding) {
+        if (binding.isArray()) {
+            binding = binding.getElementType();
+        }
+        if (binding.isPrimitive() || binding.isLocal()) return;
+        for (Object o : unit.imports()) {
+            ImportDeclaration importDeclaration = (ImportDeclaration) o;
+            IBinding b = importDeclaration.resolveBinding();
+            if (b != null) {
+                if (b.isEqualTo(binding)) {
+                    return;
+                }
+            }
+        }
+        ImportDeclaration declaration = unit.getAST().newImportDeclaration();
+        String name = binding.getBinaryName();
+        if (name.contains("$")) {
+            name = name.replace("$", ".");
+        }
+        declaration.setName(unit.getAST().newName(name));
+        unit.imports().add(declaration);
+    }
+
+    void handleFrag(VariableDeclarationFragment fragment) {
+        AST ast = fragment.getAST();
+        if (fragment.getInitializer() instanceof LambdaExpression) {
+            LambdaExpression lambda = (LambdaExpression) fragment.getInitializer();
+            fragment.setInitializer(lambda(lambda));
+        }
+        else if (fragment.getInitializer() instanceof ExpressionMethodReference) {
+            ExpressionMethodReference ref = (ExpressionMethodReference) fragment.getInitializer();
+            Type type = makeType(ref.resolveTypeBinding(), ast, true);
+            IMethodBinding func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
+            fragment.setInitializer(makeAnony(type, func, makeBody(ref.resolveMethodBinding(), ast), ast));
+        }
+        else if (fragment.getInitializer() instanceof CreationReference) {
+            CreationReference reference = (CreationReference) fragment.getInitializer();
+            fragment.setInitializer(makeRefCons(reference));
+        }
+    }
+
     @Override
     public boolean visit(VariableDeclarationStatement node) {
         if (node.getType().isVar()) {
-            ITypeBinding binding = node.getType().resolveBinding();
-            if (binding == null) {
-                System.out.println("null type " + node);
-            }
-            else {
-                node.setType(makeType(binding, node.getAST(), false));
-            }
+            node.setType(handleVar(node.getType()));
         }
         else {
             for (Object f : node.fragments()) {
                 VariableDeclarationFragment fragment = (VariableDeclarationFragment) f;
-                if (fragment.getInitializer() instanceof LambdaExpression) {
-                    LambdaExpression lambda = (LambdaExpression) fragment.getInitializer();
-                    fragment.setInitializer(lambda(lambda));
-                }
-                else if (fragment.getInitializer() instanceof ExpressionMethodReference) {
-                    ExpressionMethodReference ref = (ExpressionMethodReference) fragment.getInitializer();
-                    Type type = makeType(ref.resolveTypeBinding(), node.getAST(), true);
-                    IMethodBinding func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
-                    fragment.setInitializer(makeAnony(type, func, makeBody(ref.resolveMethodBinding(), node.getAST()), node.getAST()));
-                }
-                else if (fragment.getInitializer() instanceof CreationReference) {
-                    CreationReference reference = (CreationReference) fragment.getInitializer();
-                    fragment.setInitializer(makeRefCons(reference));
-                }
+                handleFrag(fragment);
             }
+        }
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(VariableDeclarationExpression node) {
+        if (node.getType().isVar()) {
+            node.setType(handleVar(node.getType()));
+        }
+        for (Object f : node.fragments()) {
+            VariableDeclarationFragment fragment = (VariableDeclarationFragment) f;
+            handleFrag(fragment);
+        }
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(SingleVariableDeclaration node) {
+        if (node.getType().isVar()) {
+            node.setType(handleVar(node.getType()));
         }
         return super.visit(node);
     }
 
     Expression makeRefCons(CreationReference reference) {
         AST ast = reference.getAST();
-        Type type = reference.getType();
-        type = makeType(type.resolveBinding(), ast, true);
+        ITypeBinding binding = reference.resolveTypeBinding();
+        //Type type = makeType(reference.getType().resolveBinding(), ast, true);
+        Type type = makeType(binding, ast, true);
         //make body
         Block block = ast.newBlock();
-        if (type.isArrayType()) {
-            return makeAnony(type, reference.resolveTypeBinding().getFunctionalInterfaceMethod(), makeBody(reference.resolveMethodBinding(), ast), ast);
+        if (reference.getType().isArrayType()) {
+            ArrayType arrayType = (ArrayType) reference.getType();
+            Type elemType = arrayType.getElementType();
+            ReturnStatement ret = ast.newReturnStatement();
+            ArrayCreation arrayCreation = ast.newArrayCreation();
+            ASTNode.copySubtree(reference.getAST(), arrayType);
+            arrayCreation.setType(ast.newArrayType((Type) ASTNode.copySubtree(reference.getAST(), elemType), arrayType.getDimensions()));
+            arrayCreation.dimensions().add(ast.newSimpleName("p0"));
+            ret.setExpression(arrayCreation);
+            block.statements().add(ret);
+            return makeAnony(type, binding.getFunctionalInterfaceMethod(), block, ast);
         }
         else {
-            return makeAnony(type, type.resolveBinding().getFunctionalInterfaceMethod(), makeBody(reference.resolveMethodBinding(), ast), ast);
+            block = makeBody(reference.resolveMethodBinding(), ast);
+            return makeAnony(type, binding.getFunctionalInterfaceMethod(), block, ast);
         }
     }
 
     Expression makeAnony(Type base, IMethodBinding func, Block body, AST ast) {
+        return makeAnony(base, func, body, null, ast);
+    }
+
+    Expression makeAnony(Type base, IMethodBinding func, Block body, List<String> params, AST ast) {
         ClassInstanceCreation creation = ast.newClassInstanceCreation();
         creation.setType(base);
         AnonymousClassDeclaration an = ast.newAnonymousClassDeclaration();
-        an.bodyDeclarations().add(makeMethod(func, body, ast));
+        an.bodyDeclarations().add(makeMethod(func, body, params, ast));
         creation.setAnonymousClassDeclaration(an);
         return creation;
     }
 
     Block makeBody(IMethodBinding ref, AST ast) {
         Block block = ast.newBlock();
-        MethodInvocation call = ast.newMethodInvocation();
-        call.setName(ast.newSimpleName(ref.getName()));
-        for (int i = 0; i < ref.getParameterTypes().length; i++) {
-            call.arguments().add(ast.newSimpleName("p" + i));
-        }
 
         if (ref.isConstructor()) {
             ReturnStatement returnStatement = ast.newReturnStatement();
             ClassInstanceCreation ins = ast.newClassInstanceCreation();
             ins.setType(makeType(ref.getDeclaringClass(), ast, false));
+            int i = 0;
             for (ITypeBinding arg : ref.getParameterTypes()) {
-                //ins.arguments();
+                ins.arguments().add(ast.newSimpleName("p" + i));
+                i++;
             }
             returnStatement.setExpression(ins);
             block.statements().add(returnStatement);
         }
         else {
+            MethodInvocation call = ast.newMethodInvocation();
+            call.setName(ast.newSimpleName(ref.getName()));
+            for (int i = 0; i < ref.getParameterTypes().length; i++) {
+                call.arguments().add(ast.newSimpleName("p" + i));
+            }
             if (ref.getReturnType().isPrimitive() && ref.getReturnType().getName().equals("void")) {
                 block.statements().add(ast.newExpressionStatement(call));
             }
@@ -99,7 +174,7 @@ public class MyVisitor extends ASTVisitor {
         return res;
     }
 
-    MethodDeclaration makeMethod(IMethodBinding binding, Block body, AST ast) {
+    MethodDeclaration makeMethod(IMethodBinding binding, Block body, List<String> params, AST ast) {
         MethodDeclaration methodDeclaration = ast.newMethodDeclaration();
         methodDeclaration.setReturnType2(makeType(binding.getReturnType(), ast, true));
         methodDeclaration.setName(ast.newSimpleName(binding.getName()));
@@ -113,7 +188,12 @@ public class MyVisitor extends ASTVisitor {
         for (ITypeBinding arg : binding.getParameterTypes()) {
             SingleVariableDeclaration v = ast.newSingleVariableDeclaration();
             v.setType(makeType(arg, ast, true));
-            v.setName(ast.newSimpleName("p" + i++));
+            if (params == null) {
+                v.setName(ast.newSimpleName("p" + i++));
+            }
+            else {
+                v.setName(ast.newSimpleName(params.get(i)));
+            }
             methodDeclaration.parameters().add(v);
         }
         methodDeclaration.setBody(copy(body));
@@ -133,7 +213,16 @@ public class MyVisitor extends ASTVisitor {
             ASTNode node = ASTNode.copySubtree(lambda.getAST(), lambda.getBody());
             body.statements().add(ast.newExpressionStatement((Expression) node));
         }
-        return makeAnony(type, binding, body, ast);
+        List<String> params = new ArrayList<>();
+        for (Object o : lambda.parameters()) {
+            if (o instanceof SingleVariableDeclaration) {
+                params.add(((SingleVariableDeclaration) o).getName().getIdentifier());
+            }
+            else {
+                params.add(((VariableDeclarationFragment) o).getName().getIdentifier());
+            }
+        }
+        return makeAnony(type, binding, body, params, ast);
     }
 
     @Override
