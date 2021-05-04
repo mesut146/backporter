@@ -69,6 +69,11 @@ public class MyVisitor extends ASTVisitor {
         return super.visit(node);
     }
 
+    @Override
+    public boolean visit(QualifiedType node) {
+        return super.visit(node);
+    }
+
     Type handleVar(Type type) {
         ITypeBinding binding = type.resolveBinding();
         if (binding == null) {
@@ -167,10 +172,8 @@ public class MyVisitor extends ASTVisitor {
             ReturnStatement returnStatement = ast.newReturnStatement();
             ClassInstanceCreation ins = ast.newClassInstanceCreation();
             ins.setType(makeType(ref.getDeclaringClass(), ast, false));
-            int i = 0;
-            for (ITypeBinding arg : ref.getParameterTypes()) {
-                ins.arguments().add(ast.newSimpleName("p" + i));
-                i++;
+            for (int j = 0; j < ref.getParameterTypes().length; j++) {
+                ins.arguments().add(ast.newSimpleName("p" + j));
             }
             returnStatement.setExpression(ins);
             block.statements().add(returnStatement);

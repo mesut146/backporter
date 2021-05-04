@@ -30,6 +30,7 @@ public class Porter {
     public Porter(String src, String dest) {
         this.src = src;
         this.dest = dest;
+        classpath.add(src);
     }
 
     //jar or dir
@@ -88,7 +89,7 @@ public class Porter {
         initParser();
         String[] b = new String[sourceList.size()];
         Arrays.fill(b, "");
-        parser.createASTs(sourceList.toArray(new String[0]), null, b, new FileASTRequestor() {
+        parser.createASTs(sourceList.toArray(new String[0]), new String[sourceList.size()], b, new FileASTRequestor() {
             @Override
             public void acceptAST(String sourceFilePath, CompilationUnit ast) {
                 single(ast, sourceFilePath);
