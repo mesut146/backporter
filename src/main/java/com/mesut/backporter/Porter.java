@@ -112,7 +112,7 @@ public class Porter {
             TextEdit edit = formatter.format(CodeFormatter.K_COMPILATION_UNIT, code, 0, code.length(), 0, null);
             IDocument doc = new Document(code);
             edit.apply(doc);
-            Files.write(target, doc.get().getBytes());
+            Files.write(target, NioHelper.replace(doc.get()).getBytes());
         } catch (Exception e) {
             e.printStackTrace();
         }

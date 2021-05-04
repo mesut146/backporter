@@ -8,7 +8,66 @@ import java.util.ListIterator;
 
 public class MyVisitor extends ASTVisitor {
 
+    public static boolean lambda = false;
+    public static boolean ref = false;
     CompilationUnit unit;
+
+    @Override
+    public boolean visit(MethodInvocation node) {
+        for (ListIterator it = node.arguments().listIterator(); it.hasNext(); ) {
+            Object arg = it.next();
+            if (arg instanceof ExpressionMethodReference && ref) {
+                ExpressionMethodReference ref = (ExpressionMethodReference) arg;
+                Type type = makeType(ref.resolveTypeBinding(), node.getAST(), true);
+                IMethodBinding func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
+                it.set(makeAnony(type, func, makeBody(ref.resolveMethodBinding(), node.getAST()), node.getAST()));
+            }
+            else if (arg instanceof LambdaExpression && lambda) {
+                LambdaExpression l = (LambdaExpression) arg;
+                it.set(lambda(l));
+            }
+            else if (arg instanceof CreationReference && ref) {
+                CreationReference reference = (CreationReference) arg;
+                it.set(makeRefCons(reference));
+
+            }
+        }
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(VariableDeclarationStatement node) {
+        if (node.getType().isVar()) {
+            node.setType(handleVar(node.getType()));
+        }
+        else {
+            for (Object f : node.fragments()) {
+                VariableDeclarationFragment fragment = (VariableDeclarationFragment) f;
+                handleFrag(fragment);
+            }
+        }
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(VariableDeclarationExpression node) {
+        if (node.getType().isVar()) {
+            node.setType(handleVar(node.getType()));
+        }
+        for (Object f : node.fragments()) {
+            VariableDeclarationFragment fragment = (VariableDeclarationFragment) f;
+            handleFrag(fragment);
+        }
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(SingleVariableDeclaration node) {
+        if (node.getType().isVar()) {
+            node.setType(handleVar(node.getType()));
+        }
+        return super.visit(node);
+    }
 
     Type handleVar(Type type) {
         ITypeBinding binding = type.resolveBinding();
@@ -47,54 +106,20 @@ public class MyVisitor extends ASTVisitor {
 
     void handleFrag(VariableDeclarationFragment fragment) {
         AST ast = fragment.getAST();
-        if (fragment.getInitializer() instanceof LambdaExpression) {
+        if (fragment.getInitializer() instanceof LambdaExpression && lambda) {
             LambdaExpression lambda = (LambdaExpression) fragment.getInitializer();
             fragment.setInitializer(lambda(lambda));
         }
-        else if (fragment.getInitializer() instanceof ExpressionMethodReference) {
+        else if (fragment.getInitializer() instanceof ExpressionMethodReference && ref) {
             ExpressionMethodReference ref = (ExpressionMethodReference) fragment.getInitializer();
             Type type = makeType(ref.resolveTypeBinding(), ast, true);
             IMethodBinding func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
             fragment.setInitializer(makeAnony(type, func, makeBody(ref.resolveMethodBinding(), ast), ast));
         }
-        else if (fragment.getInitializer() instanceof CreationReference) {
+        else if (fragment.getInitializer() instanceof CreationReference && ref) {
             CreationReference reference = (CreationReference) fragment.getInitializer();
             fragment.setInitializer(makeRefCons(reference));
         }
-    }
-
-    @Override
-    public boolean visit(VariableDeclarationStatement node) {
-        if (node.getType().isVar()) {
-            node.setType(handleVar(node.getType()));
-        }
-        else {
-            for (Object f : node.fragments()) {
-                VariableDeclarationFragment fragment = (VariableDeclarationFragment) f;
-                handleFrag(fragment);
-            }
-        }
-        return super.visit(node);
-    }
-
-    @Override
-    public boolean visit(VariableDeclarationExpression node) {
-        if (node.getType().isVar()) {
-            node.setType(handleVar(node.getType()));
-        }
-        for (Object f : node.fragments()) {
-            VariableDeclarationFragment fragment = (VariableDeclarationFragment) f;
-            handleFrag(fragment);
-        }
-        return super.visit(node);
-    }
-
-    @Override
-    public boolean visit(SingleVariableDeclaration node) {
-        if (node.getType().isVar()) {
-            node.setType(handleVar(node.getType()));
-        }
-        return super.visit(node);
     }
 
     Expression makeRefCons(CreationReference reference) {
@@ -156,7 +181,7 @@ public class MyVisitor extends ASTVisitor {
             for (int i = 0; i < ref.getParameterTypes().length; i++) {
                 call.arguments().add(ast.newSimpleName("p" + i));
             }
-            if (ref.getReturnType().isPrimitive() && ref.getReturnType().getName().equals("void")) {
+            if (ref.getReturnType().getName().equals("void")) {
                 block.statements().add(ast.newExpressionStatement(call));
             }
             else {
@@ -203,12 +228,14 @@ public class MyVisitor extends ASTVisitor {
     Expression lambda(LambdaExpression lambda) {
         AST ast = lambda.getAST();
         IMethodBinding binding = lambda.resolveMethodBinding();
+        addImport(binding.getDeclaringClass());
         Type type = makeType(binding.getDeclaringClass(), ast, false);
         Block body;
         if (lambda.getBody() instanceof Block) {
             body = (Block) lambda.getBody();
         }
         else {
+            //todo return
             body = ast.newBlock();
             ASTNode node = ASTNode.copySubtree(lambda.getAST(), lambda.getBody());
             body.statements().add(ast.newExpressionStatement((Expression) node));
@@ -224,29 +251,6 @@ public class MyVisitor extends ASTVisitor {
         }
         return makeAnony(type, binding, body, params, ast);
     }
-
-    @Override
-    public boolean visit(MethodInvocation node) {
-        for (ListIterator it = node.arguments().listIterator(); it.hasNext(); ) {
-            Object arg = it.next();
-            if (arg instanceof ExpressionMethodReference) {
-                ExpressionMethodReference ref = (ExpressionMethodReference) arg;
-                Type type = makeType(ref.resolveTypeBinding(), node.getAST(), true);
-                IMethodBinding func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
-                it.set(makeAnony(type, func, makeBody(ref.resolveMethodBinding(), node.getAST()), node.getAST()));
-            }
-            else if (arg instanceof LambdaExpression) {
-                LambdaExpression l = (LambdaExpression) arg;
-                it.set(lambda(l));
-            }
-            else if (arg instanceof CreationReference) {
-                CreationReference reference = (CreationReference) arg;
-                it.set(makeRefCons(reference));
-            }
-        }
-        return super.visit(node);
-    }
-
 
     Type makeType(ITypeBinding binding, AST ast, boolean infer) {
         if (binding.isArray()) {
