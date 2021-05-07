@@ -56,12 +56,12 @@ public class Porter {
         parser.setEnvironment(cpJars.toArray(new String[0]), cpDirs.toArray(new String[0]), null, true);
 
         parser.setResolveBindings(true);
-        parser.setBindingsRecovery(true);
-        parser.setStatementsRecovery(true);
+        //parser.setBindingsRecovery(true);
+        //parser.setStatementsRecovery(true);
 
         Map options = JavaCore.getOptions();
         String ver = JavaCore.VERSION_13;
-        options.put(JavaCore.COMPILER_COMPLIANCE, ver);
+        //options.put(JavaCore.COMPILER_COMPLIANCE, ver);
         options.put(JavaCore.COMPILER_SOURCE, ver);
         options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, ver);
         //options.put(JavaCore.COMPILER_PB_ENABLE_PREVIEW_FEATURES,"true");
@@ -99,9 +99,9 @@ public class Porter {
 
     private void single(CompilationUnit ast, String path) {
         System.out.println("porting " + path);
-        MyVisitor visitor = new MyVisitor();
-        visitor.unit = ast;
+        MyVisitor visitor = new MyVisitor(ast);
         ast.accept(visitor);
+        ast.accept(new MethodPorter());
         String relPath = Util.trimPrefix(path, src);
         Path target = Paths.get(dest, relPath);
 

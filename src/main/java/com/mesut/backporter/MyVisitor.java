@@ -12,6 +12,10 @@ public class MyVisitor extends ASTVisitor {
     public static boolean ref = false;
     CompilationUnit unit;
 
+    public MyVisitor(CompilationUnit ast) {
+        this.unit = ast;
+    }
+
     @Override
     public boolean visit(MethodInvocation node) {
         for (ListIterator it = node.arguments().listIterator(); it.hasNext(); ) {

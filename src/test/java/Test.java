@@ -31,41 +31,6 @@ public class Test {
         porter.port();
     }
 
-    @org.junit.Test
-    public void consRef() {
-        List<w> l = Arrays.asList(new w(5), new w(8));
-        IntFunction<w[]> f = w[]::new;
-        f = new IntFunction<w[]>() {
-            @Override
-            public w[] apply(int i) {
-                return new w[i];
-            }
-        };
-        w[] arr = l.toArray(f);
-
-
-        System.out.println(Arrays.toString(arr));
-    }
-
-    @org.junit.Test
-    public void stRef() {
-
-    }
-
-    static class w {
-        int a;
-
-        w(int i) {
-            a = i;
-            System.out.println("cons " + i);
-        }
-
-        @Override
-        public String toString() {
-            return "w{" + a + "}";
-        }
-
-    }
 
 }
 
