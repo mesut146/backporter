@@ -4,34 +4,34 @@ import org.eclipse.jdt.core.dom.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.ListIterator;
 
+@SuppressWarnings("unchecked")
 public class MyVisitor extends ASTVisitor {
 
-    public static boolean lambda = false;
-    public static boolean ref = false;
+    public static boolean ref = true;
     CompilationUnit unit;
 
     public MyVisitor(CompilationUnit ast) {
         this.unit = ast;
+
     }
 
     @Override
     public boolean visit(MethodInvocation node) {
-        for (ListIterator it = node.arguments().listIterator(); it.hasNext(); ) {
-            Object arg = it.next();
+        for (var it = node.arguments().listIterator(); it.hasNext(); ) {
+            var arg = it.next();
             if (arg instanceof ExpressionMethodReference && ref) {
-                ExpressionMethodReference ref = (ExpressionMethodReference) arg;
-                Type type = makeType(ref.resolveTypeBinding(), node.getAST(), true);
-                IMethodBinding func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
+                var ref = (ExpressionMethodReference) arg;
+                var type = makeType(ref.resolveTypeBinding(), node.getAST(), true);
+                var func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
                 it.set(makeAnony(type, func, makeBody(ref.resolveMethodBinding(), node.getAST()), node.getAST()));
             }
-            else if (arg instanceof LambdaExpression && lambda) {
-                LambdaExpression l = (LambdaExpression) arg;
+            else if (arg instanceof LambdaExpression) {
+                var l = (LambdaExpression) arg;
                 it.set(lambda(l));
             }
             else if (arg instanceof CreationReference && ref) {
-                CreationReference reference = (CreationReference) arg;
+                var reference = (CreationReference) arg;
                 it.set(makeRefCons(reference));
 
             }
@@ -46,7 +46,7 @@ public class MyVisitor extends ASTVisitor {
         }
         else {
             for (Object f : node.fragments()) {
-                VariableDeclarationFragment fragment = (VariableDeclarationFragment) f;
+                var fragment = (VariableDeclarationFragment) f;
                 handleFrag(fragment);
             }
         }
@@ -59,7 +59,7 @@ public class MyVisitor extends ASTVisitor {
             node.setType(handleVar(node.getType()));
         }
         for (Object f : node.fragments()) {
-            VariableDeclarationFragment fragment = (VariableDeclarationFragment) f;
+            var fragment = (VariableDeclarationFragment) f;
             handleFrag(fragment);
         }
         return super.visit(node);
@@ -79,7 +79,7 @@ public class MyVisitor extends ASTVisitor {
     }
 
     Type handleVar(Type type) {
-        ITypeBinding binding = type.resolveBinding();
+        var binding = type.resolveBinding();
         if (binding == null) {
             System.out.println("null var type = " + type.getParent());
             return (Type) ASTNode.copySubtree(type.getAST(), type);
@@ -96,16 +96,16 @@ public class MyVisitor extends ASTVisitor {
         }
         if (binding.isPrimitive() || binding.isLocal()) return;
         for (Object o : unit.imports()) {
-            ImportDeclaration importDeclaration = (ImportDeclaration) o;
-            IBinding b = importDeclaration.resolveBinding();
+            var importDeclaration = (ImportDeclaration) o;
+            var b = importDeclaration.resolveBinding();
             if (b != null) {
                 if (b.isEqualTo(binding)) {
                     return;
                 }
             }
         }
-        ImportDeclaration declaration = unit.getAST().newImportDeclaration();
-        String name = binding.getBinaryName();
+        var declaration = unit.getAST().newImportDeclaration();
+        var name = binding.getBinaryName();
         if (name.contains("$")) {
             name = name.replace("$", ".");
         }
@@ -114,35 +114,35 @@ public class MyVisitor extends ASTVisitor {
     }
 
     void handleFrag(VariableDeclarationFragment fragment) {
-        AST ast = fragment.getAST();
-        if (fragment.getInitializer() instanceof LambdaExpression && lambda) {
-            LambdaExpression lambda = (LambdaExpression) fragment.getInitializer();
+        var ast = fragment.getAST();
+        if (fragment.getInitializer() instanceof LambdaExpression) {
+            var lambda = (LambdaExpression) fragment.getInitializer();
             fragment.setInitializer(lambda(lambda));
         }
         else if (fragment.getInitializer() instanceof ExpressionMethodReference && ref) {
-            ExpressionMethodReference ref = (ExpressionMethodReference) fragment.getInitializer();
-            Type type = makeType(ref.resolveTypeBinding(), ast, true);
-            IMethodBinding func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
+            var ref = (ExpressionMethodReference) fragment.getInitializer();
+            var type = makeType(ref.resolveTypeBinding(), ast, true);
+            var func = ref.resolveTypeBinding().getFunctionalInterfaceMethod();
             fragment.setInitializer(makeAnony(type, func, makeBody(ref.resolveMethodBinding(), ast), ast));
         }
         else if (fragment.getInitializer() instanceof CreationReference && ref) {
-            CreationReference reference = (CreationReference) fragment.getInitializer();
+            var reference = (CreationReference) fragment.getInitializer();
             fragment.setInitializer(makeRefCons(reference));
         }
     }
 
     Expression makeRefCons(CreationReference reference) {
-        AST ast = reference.getAST();
-        ITypeBinding binding = reference.resolveTypeBinding();
+        var ast = reference.getAST();
+        var binding = reference.resolveTypeBinding();
         //Type type = makeType(reference.getType().resolveBinding(), ast, true);
-        Type type = makeType(binding, ast, true);
+        var type = makeType(binding, ast, true);
         //make body
-        Block block = ast.newBlock();
+        var block = ast.newBlock();
         if (reference.getType().isArrayType()) {
-            ArrayType arrayType = (ArrayType) reference.getType();
-            Type elemType = arrayType.getElementType();
-            ReturnStatement ret = ast.newReturnStatement();
-            ArrayCreation arrayCreation = ast.newArrayCreation();
+            var arrayType = (ArrayType) reference.getType();
+            var elemType = arrayType.getElementType();
+            var ret = ast.newReturnStatement();
+            var arrayCreation = ast.newArrayCreation();
             ASTNode.copySubtree(reference.getAST(), arrayType);
             arrayCreation.setType(ast.newArrayType((Type) ASTNode.copySubtree(reference.getAST(), elemType), arrayType.getDimensions()));
             arrayCreation.dimensions().add(ast.newSimpleName("p0"));
@@ -161,20 +161,20 @@ public class MyVisitor extends ASTVisitor {
     }
 
     Expression makeAnony(Type base, IMethodBinding func, Block body, List<String> params, AST ast) {
-        ClassInstanceCreation creation = ast.newClassInstanceCreation();
+        var creation = ast.newClassInstanceCreation();
         creation.setType(base);
-        AnonymousClassDeclaration an = ast.newAnonymousClassDeclaration();
+        var an = ast.newAnonymousClassDeclaration();
         an.bodyDeclarations().add(makeMethod(func, body, params, ast));
         creation.setAnonymousClassDeclaration(an);
         return creation;
     }
 
     Block makeBody(IMethodBinding ref, AST ast) {
-        Block block = ast.newBlock();
+        var block = ast.newBlock();
 
         if (ref.isConstructor()) {
-            ReturnStatement returnStatement = ast.newReturnStatement();
-            ClassInstanceCreation ins = ast.newClassInstanceCreation();
+            var returnStatement = ast.newReturnStatement();
+            var ins = ast.newClassInstanceCreation();
             ins.setType(makeType(ref.getDeclaringClass(), ast, false));
             for (int j = 0; j < ref.getParameterTypes().length; j++) {
                 ins.arguments().add(ast.newSimpleName("p" + j));
@@ -183,7 +183,7 @@ public class MyVisitor extends ASTVisitor {
             block.statements().add(returnStatement);
         }
         else {
-            MethodInvocation call = ast.newMethodInvocation();
+            var call = ast.newMethodInvocation();
             call.setName(ast.newSimpleName(ref.getName()));
             for (int i = 0; i < ref.getParameterTypes().length; i++) {
                 call.arguments().add(ast.newSimpleName("p" + i));
@@ -192,7 +192,7 @@ public class MyVisitor extends ASTVisitor {
                 block.statements().add(ast.newExpressionStatement(call));
             }
             else {
-                ReturnStatement returnStatement = ast.newReturnStatement();
+                var returnStatement = ast.newReturnStatement();
                 returnStatement.setExpression(call);
                 block.statements().add(returnStatement);
             }
@@ -201,13 +201,13 @@ public class MyVisitor extends ASTVisitor {
     }
 
     Block copy(Block block) {
-        Block res = block.getAST().newBlock();
+        var res = block.getAST().newBlock();
         res.statements().addAll(ASTNode.copySubtrees(block.getAST(), block.statements()));
         return res;
     }
 
     MethodDeclaration makeMethod(IMethodBinding binding, Block body, List<String> params, AST ast) {
-        MethodDeclaration methodDeclaration = ast.newMethodDeclaration();
+        var methodDeclaration = ast.newMethodDeclaration();
         methodDeclaration.setReturnType2(makeType(binding.getReturnType(), ast, true));
         methodDeclaration.setName(ast.newSimpleName(binding.getName()));
         if (Modifier.isPublic(binding.getModifiers())) {
@@ -217,8 +217,8 @@ public class MyVisitor extends ASTVisitor {
             methodDeclaration.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
         }
         int i = 0;
-        for (ITypeBinding arg : binding.getParameterTypes()) {
-            SingleVariableDeclaration v = ast.newSingleVariableDeclaration();
+        for (var arg : binding.getParameterTypes()) {
+            var v = ast.newSingleVariableDeclaration();
             v.setType(makeType(arg, ast, true));
             if (params == null) {
                 v.setName(ast.newSimpleName("p" + i++));
@@ -233,22 +233,23 @@ public class MyVisitor extends ASTVisitor {
     }
 
     Expression lambda(LambdaExpression lambda) {
-        AST ast = lambda.getAST();
-        IMethodBinding binding = lambda.resolveMethodBinding();
+        var ast = lambda.getAST();
+        var binding = lambda.resolveMethodBinding();
         addImport(binding.getDeclaringClass());
-        Type type = makeType(binding.getDeclaringClass(), ast, false);
+        var type = makeType(binding.getDeclaringClass(), ast, false);
         Block body;
         if (lambda.getBody() instanceof Block) {
             body = (Block) lambda.getBody();
         }
         else {
-            //todo return
             body = ast.newBlock();
-            ASTNode node = ASTNode.copySubtree(lambda.getAST(), lambda.getBody());
-            body.statements().add(ast.newExpressionStatement((Expression) node));
+            var node = (Expression) ASTNode.copySubtree(lambda.getAST(), lambda.getBody());
+            var ret = ast.newReturnStatement();
+            ret.setExpression(node);
+            body.statements().add(ret);
         }
-        List<String> params = new ArrayList<>();
-        for (Object o : lambda.parameters()) {
+        var params = new ArrayList<String>();
+        for (var o : lambda.parameters()) {
             if (o instanceof SingleVariableDeclaration) {
                 params.add(((SingleVariableDeclaration) o).getName().getIdentifier());
             }
@@ -267,14 +268,14 @@ public class MyVisitor extends ASTVisitor {
             return ast.newPrimitiveType(PrimitiveType.toCode(binding.getName()));
         }
         else if (binding.isParameterizedType()) {
-            ParameterizedType type = ast.newParameterizedType(ast.newSimpleType(ast.newSimpleName(binding.getErasure().getName())));
+            var type = ast.newParameterizedType(ast.newSimpleType(ast.newSimpleName(binding.getErasure().getName())));
             for (ITypeBinding arg : binding.getTypeArguments()) {
                 type.typeArguments().add(makeType(arg, ast, infer));
             }
             return type;
         }
         else if (binding.isWildcardType()) {
-            WildcardType type = ast.newWildcardType();
+            var type = ast.newWildcardType();
             if (binding.getBound() != null) {
                 if (infer) {
                     return makeType(binding.getBound(), ast, false);

@@ -21,16 +21,15 @@ import java.util.List;
 import java.util.Map;
 
 public class Porter {
-    String src;
-    String dest;
+    File src;
+    File dest;
     ASTParser parser;
     List<String> classpath = new ArrayList<>();
     List<String> sourceList;
 
-    public Porter(String src, String dest) {
+    public Porter(File src, File dest) {
         this.src = src;
         this.dest = dest;
-        classpath.add(src);
     }
 
     //jar or dir
@@ -40,11 +39,11 @@ public class Porter {
 
     @SuppressWarnings("rawtypes,unchecked")
     public void initParser() {
-        parser = ASTParser.newParser(AST.JLS13);
-        List<String> cpDirs = new ArrayList<>();
-        List<String> cpJars = new ArrayList<>();
+        parser = ASTParser.newParser(AST.getJLSLatest());
+        var cpDirs = new ArrayList<String>();
+        var cpJars = new ArrayList<String>();
 
-        for (String path : classpath) {
+        for (var path : classpath) {
             if (path.endsWith(".jar")) {
                 cpJars.add(path);
             }
@@ -52,15 +51,15 @@ public class Porter {
                 cpDirs.add(path);
             }
         }
-        cpDirs.add(src);
+        //cpDirs.add(src.getPath());
         parser.setEnvironment(cpJars.toArray(new String[0]), cpDirs.toArray(new String[0]), null, true);
 
         parser.setResolveBindings(true);
         //parser.setBindingsRecovery(true);
         //parser.setStatementsRecovery(true);
 
-        Map options = JavaCore.getOptions();
-        String ver = JavaCore.VERSION_13;
+        var options = JavaCore.getOptions();
+        var ver = JavaCore.latestSupportedJavaVersion();
         //options.put(JavaCore.COMPILER_COMPLIANCE, ver);
         options.put(JavaCore.COMPILER_SOURCE, ver);
         options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, ver);
@@ -71,7 +70,7 @@ public class Porter {
 
     void collect(File dir) {
         if (dir.isDirectory()) {
-            for (File file : dir.listFiles()) {
+            for (var file : dir.listFiles()) {
                 if (file.isDirectory()) {
                     collect(file);
                 }
@@ -84,7 +83,7 @@ public class Porter {
 
     public void port() {
         sourceList = new ArrayList<>();
-        collect(new File(src));
+        collect(src);
         System.out.println("total of " + sourceList.size() + " files");
         initParser();
         String[] b = new String[sourceList.size()];
@@ -102,8 +101,8 @@ public class Porter {
         MyVisitor visitor = new MyVisitor(ast);
         ast.accept(visitor);
         ast.accept(new MethodPorter());
-        String relPath = Util.trimPrefix(path, src);
-        Path target = Paths.get(dest, relPath);
+        String relPath = Util.trimPrefix(path, src.getAbsolutePath());
+        Path target = Paths.get(dest.getAbsolutePath(), relPath);
 
         try {
             target.toFile().getParentFile().mkdirs();
@@ -113,7 +112,9 @@ public class Porter {
             TextEdit edit = formatter.format(CodeFormatter.K_COMPILATION_UNIT, code, 0, code.length(), 0, null);
             IDocument doc = new Document(code);
             edit.apply(doc);
-            Files.write(target, NioHelper.replace(doc.get()).getBytes());
+            var data = doc.get();
+            //data = NioHelper.replace(data);
+            Files.write(target, data.getBytes());
         } catch (Exception e) {
             e.printStackTrace();
         }
